@@ -28,13 +28,18 @@ namespace IngameScript
         // Piston Pistions
         string XTag = "X/";
         string ZTag = "Z/";
+        string YTag = "Y/";
 
         bool programSet;
         bool programState;
 
         bool pristonXExtract;
         bool pristonZExtract;
+        bool pristonYExtract;
 
+        bool XAxisJobActive;
+        bool ZAxisJobActive;
+        bool YAxisJobActive;
 
         IMyPistonBase piston;
 
@@ -42,7 +47,7 @@ namespace IngameScript
 
         List<IMyPistonBase> XPistons;
         List<IMyPistonBase> ZPistons;
-
+        List<IMyPistonBase> YPistons;
 
         //Piston Variables
         float PVelocity;
@@ -120,6 +125,11 @@ namespace IngameScript
             //PVelocity = -0.1F;
             pristonXExtract = false;
             pristonZExtract = false;
+            pristonYExtract = false;
+
+            XAxisJobActive = false;
+            ZAxisJobActive = false;
+            YAxisJobActive = false;
 
             PVelocity = -1.5F;
             PMinLimit = 0;
@@ -127,6 +137,7 @@ namespace IngameScript
 
             XPistons = new List<IMyPistonBase>();
             ZPistons = new List<IMyPistonBase>();
+            YPistons = new List<IMyPistonBase>();
 
             blocks = new List<IMyTerminalBlock>();
 
@@ -163,6 +174,18 @@ namespace IngameScript
                             piston.MaxLimit = PMaxLimit;
                             piston.Enabled = true;
                             ZPistons.Add(piston);
+                        }
+                        else if (piston.CustomName.Contains(YTag))
+                        {
+                            if (!piston.GetValueBool("ShareInertiaTensor"))
+                            {
+                                piston.GetActionWithName("ShareInertiaTensor").Apply(piston);
+                            }
+                            piston.Velocity = PVelocity;
+                            piston.MinLimit = PMinLimit;
+                            piston.MaxLimit = PMaxLimit;
+                            piston.Enabled = true;
+                            YPistons.Add(piston);
                         }
                     }
                 }
@@ -207,6 +230,8 @@ namespace IngameScript
             XAxisJob();
             Echo("---Z---");
             ZAxisJob();
+            Echo("---Y---");
+            YAxisJob();
         }
 
         public void XAxisJob()
@@ -261,6 +286,33 @@ namespace IngameScript
 
             Echo("Z - Piston Count: " + ZPistons.Count);
             Echo("Z - Current Pos : " + zCurrentPosition);
+        }
+
+        public void YAxisJob()
+        {
+            var yCurrentPosition = YPistons[0].CurrentPosition;
+
+            if (!pristonYExtract && (yCurrentPosition == YPistons[0].MinLimit))
+            {
+                pristonYExtract = !pristonYExtract;
+                //Extend
+                foreach (IMyPistonBase p in YPistons)
+                {
+                    p.Extend();
+                }
+            }
+            else if (pristonYExtract && (yCurrentPosition == YPistons[0].MaxLimit))
+            {
+                pristonYExtract = !pristonYExtract;
+                //Retract
+                foreach (IMyPistonBase p in YPistons)
+                {
+                    p.Retract();
+                }
+            }
+
+            Echo("Y - Piston Count: " + YPistons.Count);
+            Echo("Y - Current Pos : " + yCurrentPosition);
         }
 
         //******************************************************************
