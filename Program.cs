@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using VRage;
 using VRage.Collections;
 using VRage.Game;
@@ -131,7 +132,7 @@ namespace IngameScript
             ZAxisJobActive = false;
             YAxisJobActive = false;
 
-            PVelocity = -1.5F;
+            PVelocity = -1.0F;
             PMinLimit = 0;
             PMaxLimit = 10;
 
@@ -171,7 +172,7 @@ namespace IngameScript
                             }
                             piston.Velocity = PVelocity;
                             piston.MinLimit = PMinLimit;
-                            piston.MaxLimit = PMaxLimit;
+                            piston.MaxLimit = PMinLimit;
                             piston.Enabled = true;
                             ZPistons.Add(piston);
                         }
@@ -227,16 +228,29 @@ namespace IngameScript
         {
             Echo("---Jobs Pistons---");
             Echo("---X---");
-            XAxisJob();
+            Echo("Status: " + XPistons[0].Status);
+            Echo("X - Piston Count: " + XPistons.Count);
+            Echo("X - Current Pos : " + XPistons[0].CurrentPosition);
+            if (!XAxisJobActive && !ZAxisJobActive)
+            {
+                XAxisJob();
+                ZPistons[0].MaxLimit = ZPistons[0].MaxLimit + 2;
+            }
             Echo("---Z---");
-            ZAxisJob();
-            Echo("---Y---");
-            YAxisJob();
+            Echo("Status: " + ZPistons[0].Status);
+            Echo("Z - Piston Count: " + ZPistons.Count);
+            Echo("Z - Current Pos : " + ZPistons[0].CurrentPosition);
+            if (XAxisJobActive && (XPistons[0].Status == PistonStatus.Extended || XPistons[0].Status == PistonStatus.Retracted))
+            {
+                ZAxisJob();
+                YPistons[0].MaxLimit = ZPistons[0].MaxLimit + 2;
+            };
         }
 
         public void XAxisJob()
         {
-            var xCurrentPosition = XPistons[0].CurrentPosition;
+                XAxisJobActive = true;
+               var xCurrentPosition = XPistons[0].CurrentPosition;
 
             if (!pristonXExtract && (xCurrentPosition == XPistons[0].MinLimit))
             {
@@ -245,6 +259,7 @@ namespace IngameScript
                 foreach (IMyPistonBase p in XPistons)
                 {
                     p.Extend();
+                    XAxisJobActive = true;
                 }
             }
             else if (pristonXExtract && (xCurrentPosition == XPistons[0].MaxLimit))
@@ -254,38 +269,29 @@ namespace IngameScript
                 foreach (IMyPistonBase p in XPistons)
                 {
                     p.Retract();
+                    XAxisJobActive = true;
                 }
             }
-
-            Echo("X - Piston Count: " + XPistons.Count);
-            Echo("X - Current Pos : " + xCurrentPosition);
         }
 
         public void ZAxisJob()
         {
             var zCurrentPosition = ZPistons[0].CurrentPosition;
 
-            if (!pristonZExtract && (zCurrentPosition == ZPistons[0].MinLimit))
+            if(ZAxisJobActive && (ZPistons[0].Status == PistonStatus.Extended || ZPistons[0].Status == PistonStatus.Retracted))
+            {
+                ZAxisJobActive = false;
+            }
+            else if (!ZAxisJobActive)
             {
                 pristonZExtract = !pristonZExtract;
                 //Extend
                 foreach (IMyPistonBase p in ZPistons)
                 {
                     p.Extend();
+                    ZAxisJobActive = true;
                 }
             }
-            else if (pristonZExtract && (zCurrentPosition == ZPistons[0].MaxLimit))
-            {
-                pristonZExtract = !pristonZExtract;
-                //Retract
-                foreach (IMyPistonBase p in ZPistons)
-                {
-                    p.Retract();
-                }
-            }
-
-            Echo("Z - Piston Count: " + ZPistons.Count);
-            Echo("Z - Current Pos : " + zCurrentPosition);
         }
 
         public void YAxisJob()
