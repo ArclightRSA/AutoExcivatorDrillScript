@@ -21,7 +21,7 @@ using VRageMath;
 
 namespace IngameScript
 {
-    partial class Program : MyGridProgram
+    partial class Program1 : MyGridProgram
     {
         //******************************************************************
         // -- Main
@@ -33,14 +33,10 @@ namespace IngameScript
 
         bool programSet;
         bool programState;
-        bool LayerDone;
 
         bool XAxisJobActive;
         bool ZAxisJobActive;
         bool YAxisJobActive;
-
-        bool XAxisJobDone;
-        bool ZAxisJobDone;
 
         IMyPistonBase piston;
 
@@ -55,7 +51,7 @@ namespace IngameScript
         float PMinLimit;
         float PMaxLimit;
 
-        public Program()
+        public Program1()
         {
             Echo("Program");
 
@@ -90,15 +86,6 @@ namespace IngameScript
                 Echo("--------------");
                 programState = true;
             }
-            else if (argument == "X" && programState)
-            {
-                XAxisJobDone = false;
-                XAxisJobActive = false;
-            }
-            else if (argument == "Z" && programState)
-            {
-                ZAxisJobActive = false;
-            }
             else if (programSet && programState)
             {
                 Echo("----------");
@@ -129,12 +116,8 @@ namespace IngameScript
             //PVelocity = -0.1F;
 
             XAxisJobActive = false;
-            XAxisJobDone = false;
             ZAxisJobActive = false;
-            ZAxisJobDone = false;
             YAxisJobActive = false;
-
-            LayerDone = false;
 
             PVelocity = -1.0F;
             PMinLimit = 0;
@@ -202,48 +185,79 @@ namespace IngameScript
             programSet = true;
         }
 
+        public void CheckPistonPos()
+        {
+            var XPos = XPistons[0].CurrentPosition;
+            var XCountPos = XPos * XPistons.Count;
+
+            Echo("---X---");
+            Echo(XCountPos.ToString() + " m");
+            Echo("---Z---");
+            var blocks = XCountPos / 1.5;
+            Echo("---Pistons---");
+            Echo("X piston Count: " + XPistons.Count);
+            Echo("Z piston Count: " + ZPistons.Count);
+            Echo("---Blocks---");
+            Echo(blocks.ToString() + " Blocks");
+        }
+
+        public void PistonSwitch(string coord)
+        {
+            if (coord == "x")
+            {
+                foreach (IMyPistonBase p in XPistons)
+                {
+                }
+            }
+        }
+
         public void AxisJobs()
         {
+            Echo("---Jobs Pistons---");
             Echo("---X---");
             Echo("Status: " + XPistons[0].Status);
+            Echo("X - Piston Count: " + XPistons.Count);
             Echo("X - Current Pos : " + XPistons[0].CurrentPosition);
-            Echo("---Z---");
-            Echo("Z - Current Pos : " + ZPistons[0].CurrentPosition);
-            if (!LayerDone)
+            if (!XAxisJobActive && !ZAxisJobActive)
             {
                 XAxisJob();
-            }                    
-            
-                  
+            }
+            Echo("---Z---");
+            Echo("Status: " + ZPistons[0].Status);
+            Echo("Z - Piston Count: " + ZPistons.Count);
+            Echo("Z - Current Pos : " + ZPistons[0].CurrentPosition);
+            if ((XPistons[0].Status == PistonStatus.Extended || XPistons[0].Status == PistonStatus.Retracted))
+            {
+                ZAxisJob();
+            };
         }
 
         public void XAxisJob()
         {
-            if (XAxisJobActive && (XPistons[0].Status == PistonStatus.Retracted || XPistons[0].Status == PistonStatus.Extended))
-            {
-                ZAxisJob();
-            }
-            else if (!XAxisJobActive)
-            {
-                XAxisJobActive = true;
+            var xCurrentPosition = XPistons[0].CurrentPosition;
 
-                if (XPistons[0].Status == PistonStatus.Retracted)
-                {
-                    //XAxisJobActive = true;
-                    //Extend
+            if (XAxisJobActive && (XPistons[0].Status == PistonStatus.Extended || XPistons[0].Status == PistonStatus.Retracted))
+            {
+
+            }
+            else if (!XAxisJobActive && !ZAxisJobActive)
+            {
+                if ((xCurrentPosition == XPistons[0].MinLimit) && (XPistons[0].Status == PistonStatus.Extended || XPistons[0].Status == PistonStatus.Retracted))
+                { //Extend
+                    XAxisJobActive = true;
+                    ZAxisJobActive = false;
                     foreach (IMyPistonBase p in XPistons)
                     {
-                        var s = p.Status;
-                        
                         p.Extend();
                     }
                 }
-                else if (XPistons[0].Status == PistonStatus.Extended)
+                else if ((xCurrentPosition == XPistons[0].MaxLimit) && (XPistons[0].Status == PistonStatus.Extended || XPistons[0].Status == PistonStatus.Retracted))
                 {
                     //Retract
+                    XAxisJobActive = true;
+                    ZAxisJobActive = false;
                     foreach (IMyPistonBase p in XPistons)
                     {
-                        var s = p.Status;
                         p.Retract();
                     }
                 }
@@ -252,49 +266,29 @@ namespace IngameScript
 
         public void ZAxisJob()
         {
-            
-            if (ZPistons[0].MaxLimit == 10 && (ZPistons[0].Status == PistonStatus.Retracted || ZPistons[0].Status == PistonStatus.Extended))
-            {
-                LayerDone = true;
-                ZAxisJobDone = false;
-                ZAxisJobActive = false;
-                XAxisJobActive = false;
+            Echo("Z Switch");
 
-                ResetAxisXZ();
-            }
-            else if (ZAxisJobActive && (ZPistons[0].Status == PistonStatus.Retracted || ZPistons[0].Status == PistonStatus.Extended))
+            if (ZAxisJobActive && (ZPistons[0].Status == PistonStatus.Extended || ZPistons[0].Status == PistonStatus.Retracted))
             {
                 ZAxisJobActive = false;
-                XAxisJobActive = false;
             }
             else if (!ZAxisJobActive)
             {
+                //Extend
                 foreach (IMyPistonBase p in ZPistons)
                 {
+                    XAxisJobActive = false;
                     ZAxisJobActive = true;
-                    p.MaxLimit += 2;
+                    p.MaxLimit = 2;
                     p.Extend();
                 }
             }
         }
 
-        public void ResetAxisXZ()
+        public void YAxisJob()
         {
-            ZAxisJobActive = true;
-            XAxisJobActive = true;
-
-            foreach (IMyPistonBase p in XPistons)
-            {
-                var s = p.Status;
-
-                p.Retract();
-            }
-            foreach (IMyPistonBase p in ZPistons)
-            {
-                p.MaxLimit = 0;
-                p.Retract();
-            }
         }
+
         //******************************************************************
     }
 }
