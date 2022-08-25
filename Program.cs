@@ -31,8 +31,6 @@ namespace IngameScript
         string ZTag = "Z/";
         string YTag = "Y/";
 
-        string DrillTag = "/Dill";
-
         float xBlocks;
         float zBlocks;
         float yBlocks;
@@ -46,6 +44,7 @@ namespace IngameScript
         bool programSet;
         bool programState;
         bool LayerDone;
+        bool isComplete;
 
         bool XAxisJobActive;
         bool ZAxisJobActive;
@@ -119,6 +118,12 @@ namespace IngameScript
             {
                 ZAxisJobActive = false;
             }
+            else if (programState && isComplete)
+            {
+                Echo("----------");
+                Echo("Excivation finished");
+                Echo("--------------");
+            }
             else if (programSet && programState)
             {
                 Echo("----------");
@@ -165,6 +170,7 @@ namespace IngameScript
             YAxisJobActive = false;
 
             LayerDone = false;
+            isComplete = false;
 
             XPistons = new List<IMyPistonBase>();
             ZPistons = new List<IMyPistonBase>();
@@ -289,9 +295,9 @@ namespace IngameScript
                     bool result = true;
                     mainTag = config[2];
 
-                    if (!float.TryParse(config[4], out customXAxisSpeed)) { Echo("Getting use_auto_pause failed!"); result = false; }
-                    if (!float.TryParse(config[6], out customZAxisSpeed)) { Echo("Getting cargo_high_limit failed!"); result = false; }
-                    if (!float.TryParse(config[8], out customYAxisSpeed)) { Echo("Getting cargo_high_limit failed!"); result = false; }
+                    if (!float.TryParse(config[4], out customXAxisSpeed)) { Echo("Getting Custom X - Axis Speed failed!"); result = false; }
+                    if (!float.TryParse(config[6], out customZAxisSpeed)) { Echo("Getting Custom Z - Axis Speed failed!"); result = false; }
+                    if (!float.TryParse(config[8], out customYAxisSpeed)) { Echo("Getting Custom Y - Axis Speed failed!"); result = false; }
                     if (result)
                     {
                         Echo("Configuration Done!");
@@ -326,13 +332,17 @@ namespace IngameScript
 
         public void AxisJobs()
         {
-            Echo("---X---");
-            Echo("X - Status: " + XPistons[0].Status);
-            Echo("X - Current Pos : " + XPistons[0].CurrentPosition);
-            Echo("Z - Status: " + XPistons[0].Status);
-            Echo("Z - Current Pos : " + ZPistons[0].CurrentPosition);
-            Echo("Y - Status: " + XPistons[0].Status);
-            Echo("Y - Current Pos : " + YPistons[0].CurrentPosition);
+            Echo("=============================");
+            Echo("Axes Coordinates Status");
+            Echo("=================");
+            var xCurrentPos = Math.Round(XPistons[0].CurrentPosition, 1);
+            var yCurrentPos = Math.Round(YPistons[0].CurrentPosition, 1);
+            var zCurrentPos = Math.Round(ZPistons[0].CurrentPosition, 1);
+            Echo("X: " + xCurrentPos + " - " + XPistons[0].Status);
+            Echo("Y: " + yCurrentPos + " - " + YPistons[0].Status);
+            Echo("Z: " + zCurrentPos + " - " + ZPistons[0].Status);
+            Echo("=============================");
+
             if (LayerDone)
             {
                 YAxisJob();
@@ -420,6 +430,23 @@ namespace IngameScript
 
         public void ResetAxisZ()
         {
+            if(YPistons[0].CurrentPosition == 10)
+            {
+                isComplete = true;
+
+                // Reset Y - Axis
+                foreach (IMyPistonBase yP in YPistons)
+                {
+                    yP.Retract();
+                }
+
+                // Turn off Drills
+                foreach (IMyShipDrill d in Drills)
+                {
+                    d.Enabled = false;
+                }
+            }
+
             ZAxisJobActive = true;
             XAxisJobActive = true;
 
