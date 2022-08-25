@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using VRage;
 using VRage.Collections;
 using VRage.Game;
@@ -24,24 +25,32 @@ namespace IngameScript
     {
         //******************************************************************
         // -- Main
-        string main_tag = "Ex/";
+        string mainTag = "Ex/";
         // Piston Pistions
         string XTag = "X/";
         string ZTag = "Z/";
         string YTag = "Y/";
 
+        float xBlocks;
+        float zBlocks;
+        float yBlocks;
+        float totalBlocks;
+
+        // Custo Data Values
+        float customXAxisSpeed;
+        float customZAxisSpeed;
+        float customYAxisSpeed;
+
         bool programSet;
         bool programState;
-
-        bool pristonXExtract;
-        bool pristonZExtract;
-        bool pristonYExtract;
+        bool LayerDone;
+        bool isComplete;
 
         bool XAxisJobActive;
         bool ZAxisJobActive;
         bool YAxisJobActive;
 
-        IMyPistonBase piston;
+
 
         List<IMyTerminalBlock> blocks;
 
@@ -49,8 +58,14 @@ namespace IngameScript
         List<IMyPistonBase> ZPistons;
         List<IMyPistonBase> YPistons;
 
+        List<IMyShipDrill> Drills;
+
+        IMyPistonBase piston;
+        IMyShipDrill drill;
+
+
+
         //Piston Variables
-        float PVelocity;
         float PMinLimit;
         float PMaxLimit;
 
@@ -60,6 +75,12 @@ namespace IngameScript
 
             programSet = false;
             programState = false;
+
+            // Set Values
+            customXAxisSpeed = customYAxisSpeed = customZAxisSpeed = -0.4F;
+
+
+            if (!getConfiguration()) setConfiguration();
 
             // Enable Runtime
             //Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -80,20 +101,28 @@ namespace IngameScript
             {
                 programSet = false;
                 programState = false;
-                foreach (IMyPistonBase p in XPistons)
-                {
-                    p.Retract();
-                    pristonXExtract = false;
-                }
                 Runtime.UpdateFrequency = UpdateFrequency.None;
             }
             else if (argument == "Start" && programSet)
             {
-
                 Echo("----------");
                 Echo("Starting");
                 Echo("--------------");
                 programState = true;
+            }
+            else if (argument == "X" && programState)
+            {
+                XAxisJobActive = false;
+            }
+            else if (argument == "Z" && programState)
+            {
+                ZAxisJobActive = false;
+            }
+            else if (programState && isComplete)
+            {
+                Echo("----------");
+                Echo("Excivation finished");
+                Echo("--------------");
             }
             else if (programSet && programState)
             {
@@ -107,6 +136,12 @@ namespace IngameScript
                 Echo("----------");
                 Echo("Setup Done - Ready to Start!");
                 Echo("--------------");
+                Echo("---Total Blocks per Axis ---");
+                Echo("X - Axis = " + xBlocks);
+                Echo("Z - Axis = " + zBlocks);
+                Echo("Y - Axis = " + yBlocks);
+                Echo("----------------------------");
+                Echo("Total Blocks to be mined = " + totalBlocks);
             }
             else
                 Echo("Setup Program First");
@@ -123,28 +158,34 @@ namespace IngameScript
 
             //Piston Setup
             //PVelocity = -0.1F;
-            pristonXExtract = false;
-            pristonZExtract = false;
-            pristonYExtract = false;
+            PMinLimit = 0;
+            PMaxLimit = 10;
+            if (customXAxisSpeed == 0)
+            {
+                customXAxisSpeed = -0.4f;
+            }
 
             XAxisJobActive = false;
             ZAxisJobActive = false;
             YAxisJobActive = false;
 
-            PVelocity = -1.5F;
-            PMinLimit = 0;
-            PMaxLimit = 10;
+            LayerDone = false;
+            isComplete = false;
 
             XPistons = new List<IMyPistonBase>();
             ZPistons = new List<IMyPistonBase>();
             YPistons = new List<IMyPistonBase>();
 
+            Drills = new List<IMyShipDrill>();
+
             blocks = new List<IMyTerminalBlock>();
 
-            GridTerminalSystem.SearchBlocksOfName(main_tag, blocks);
+            GridTerminalSystem.SearchBlocksOfName(mainTag, blocks);
 
+            // Setup Lists
             try
             {
+                // Set blocks in Lists
                 foreach (IMyTerminalBlock b in blocks)
                 {
                     if (b is IMyPistonBase)
@@ -157,10 +198,7 @@ namespace IngameScript
                             {
                                 piston.GetActionWithName("ShareInertiaTensor").Apply(piston);
                             }
-                            piston.Velocity = PVelocity;
-                            piston.MinLimit = PMinLimit;
-                            piston.MaxLimit = PMaxLimit;
-                            piston.Enabled = true;
+
                             XPistons.Add(piston);
                         }
                         else if (piston.CustomName.Contains(ZTag))
@@ -169,10 +207,7 @@ namespace IngameScript
                             {
                                 piston.GetActionWithName("ShareInertiaTensor").Apply(piston);
                             }
-                            piston.Velocity = PVelocity;
-                            piston.MinLimit = PMinLimit;
-                            piston.MaxLimit = PMaxLimit;
-                            piston.Enabled = true;
+
                             ZPistons.Add(piston);
                         }
                         else if (piston.CustomName.Contains(YTag))
@@ -181,140 +216,250 @@ namespace IngameScript
                             {
                                 piston.GetActionWithName("ShareInertiaTensor").Apply(piston);
                             }
-                            piston.Velocity = PVelocity;
-                            piston.MinLimit = PMinLimit;
-                            piston.MaxLimit = PMaxLimit;
-                            piston.Enabled = true;
+
                             YPistons.Add(piston);
                         }
                     }
+                    else if (b is IMyShipDrill)
+                    {
+                        drill = b as IMyShipDrill;
+                        drill.Enabled = true;
+                        Drills.Add(drill);
+                    }
+                }
+
+                // Set XPiston Varibles
+                foreach (IMyPistonBase xP in XPistons)
+                {
+                    xP.Velocity = customXAxisSpeed / XPistons.Count;
+                    xP.MinLimit = PMinLimit;
+                    xP.MaxLimit = PMaxLimit;
+                    xP.Retract();
+                    xP.Enabled = true;
+                }
+                // Set ZPiston Varibles
+                foreach (IMyPistonBase zP in ZPistons)
+                {
+                    zP.Velocity = customZAxisSpeed / ZPistons.Count;
+                    zP.MinLimit = PMinLimit;
+                    zP.MaxLimit = PMinLimit;
+                    zP.Retract();
+                    zP.Enabled = true;
+                }
+                // Set YPiston Varibles
+                foreach (IMyPistonBase yP in YPistons)
+                {
+                    yP.Velocity = - customYAxisSpeed / YPistons.Count;
+                    yP.MinLimit = PMinLimit;
+                    yP.MaxLimit = PMinLimit;
+                    yP.Retract();
+                    yP.Enabled = true;
                 }
             }
             catch (Exception ex)
             {
                 Echo(ex.Message);
             }
+            JobCount();
             programSet = true;
         }
 
-        public void CheckPistonPos()
+        public void setConfiguration()
         {
-            var XPos = XPistons[0].CurrentPosition;
-            var XCountPos = XPos * XPistons.Count;
+            Me.CustomData = "@Configuration\n" +
+                            "You can configure the script right below here,\n" +
+                            "by changing the values between then | characters.\n\n" +
 
-            Echo("---X---");
-            Echo(XCountPos.ToString() + " m");
-            Echo("---Z---");
-            var blocks = XCountPos / 1.5;
-            Echo("---Pistons---");
-            Echo("X piston Count: " + XPistons.Count);
-            Echo("Z piston Count: " + ZPistons.Count);
-            Echo("---Blocks---");
-            Echo(blocks.ToString() + " Blocks");
+                            "The configuration will be loaded if you click Check Code\n" +
+                            "in the Code Editor inside the Programmable Block,\n" +
+
+                            "Main Tag: |" + mainTag + "|\n\n" +   //2 string
+
+                            "///////////////////////////////////////////\n" +
+                            "Advance Configuration\n\n" +
+                            "///////////////////////////////////////////\n" +
+                            "Custom X-Axis Speed 0.0 - 5.0: |" + customXAxisSpeed + "|\n" +    //4 Float
+                            "Custom Z-Axis Speed 0.0 - 5.0: |" + customZAxisSpeed + "|\n" +    //6 Float
+                            "Custom Y-Axis Speed 0.0 - 5.0: |" + customYAxisSpeed + "|\n";    //8 Float
+
+            Echo("Configuration Set to Custom Data!");
         }
 
-        public void PistonSwitch(string coord)
+        public bool getConfiguration()
         {
-            if (coord == "x")
+            if (Me.CustomData.StartsWith("@Configuration"))
             {
-                foreach (IMyPistonBase p in XPistons)
+                string[] config = Me.CustomData.Split('|');
+                if (config.Length == 10)
                 {
+                    bool result = true;
+                    mainTag = config[2];
+
+                    if (!float.TryParse(config[4], out customXAxisSpeed)) { Echo("Getting Custom X - Axis Speed failed!"); result = false; }
+                    if (!float.TryParse(config[6], out customZAxisSpeed)) { Echo("Getting Custom Z - Axis Speed failed!"); result = false; }
+                    if (!float.TryParse(config[8], out customYAxisSpeed)) { Echo("Getting Custom Y - Axis Speed failed!"); result = false; }
+                    if (result)
+                    {
+                        Echo("Configuration Done!");
+                        return true;
+                    }
+                    else
+                    {
+                        Echo("Configuration Error!");
+                        return false;
+                    }
+                }
+                else
+                {
+                    Echo("Getting Configuration failed!");
+                    return false;
                 }
             }
+            else
+            {
+                Echo("Getting Configuration failed!");
+                return false;
+            }
+        }
+
+        public void JobCount()
+        {
+            xBlocks = (float)((10 / 2.5) * XPistons.Count);
+            zBlocks = (float)((10 / 2.5) * ZPistons.Count);
+            yBlocks = (float)((10 / 2.5) * YPistons.Count);
+            totalBlocks = xBlocks * zBlocks * yBlocks;
         }
 
         public void AxisJobs()
         {
-            Echo("---Jobs Pistons---");
-            Echo("---X---");
-            XAxisJob();
-            Echo("---Z---");
-            ZAxisJob();
-            Echo("---Y---");
-            YAxisJob();
+            Echo("=============================");
+            Echo("Axes Coordinates Status");
+            Echo("=================");
+            var xCurrentPos = Math.Round(XPistons[0].CurrentPosition, 1);
+            var yCurrentPos = Math.Round(YPistons[0].CurrentPosition, 1);
+            var zCurrentPos = Math.Round(ZPistons[0].CurrentPosition, 1);
+            Echo("X: " + xCurrentPos + " - " + XPistons[0].Status);
+            Echo("Y: " + yCurrentPos + " - " + YPistons[0].Status);
+            Echo("Z: " + zCurrentPos + " - " + ZPistons[0].Status);
+            Echo("=============================");
+
+            if (LayerDone)
+            {
+                YAxisJob();
+            }
+            else if (!LayerDone)
+            {
+                XAxisJob();
+            }
         }
 
         public void XAxisJob()
         {
-            var xCurrentPosition = XPistons[0].CurrentPosition;
-
-            if (!pristonXExtract && (xCurrentPosition == XPistons[0].MinLimit))
+            if (XAxisJobActive && (XPistons[0].Status == PistonStatus.Retracted || XPistons[0].Status == PistonStatus.Extended))
             {
-                pristonXExtract = !pristonXExtract;
-                //Extend
-                foreach (IMyPistonBase p in XPistons)
+                ZAxisJob();
+            }
+            else if (!XAxisJobActive)
+            {
+                XAxisJobActive = true;
+                if (XPistons[0].Status == PistonStatus.Retracted)
                 {
-                    p.Extend();
+                    //XAxisJobActive = true;
+                    //Extend
+                    foreach (IMyPistonBase xP in XPistons)
+                    {
+                        xP.Extend();
+                    }
+                }
+                else if (XPistons[0].Status == PistonStatus.Extended)
+                {
+                    //Retract
+                    foreach (IMyPistonBase xP in XPistons)
+                    {
+                        xP.Retract();
+                    }
                 }
             }
-            else if (pristonXExtract && (xCurrentPosition == XPistons[0].MaxLimit))
-            {
-                pristonXExtract = !pristonXExtract;
-                //Retract
-                foreach (IMyPistonBase p in XPistons)
-                {
-                    p.Retract();
-                }
-            }
-
-            Echo("X - Piston Count: " + XPistons.Count);
-            Echo("X - Current Pos : " + xCurrentPosition);
         }
 
         public void ZAxisJob()
         {
-            var zCurrentPosition = ZPistons[0].CurrentPosition;
 
-            if (!pristonZExtract && (zCurrentPosition == ZPistons[0].MinLimit))
+            if (ZPistons[0].MaxLimit == 10 && (ZPistons[0].Status == PistonStatus.Retracted || ZPistons[0].Status == PistonStatus.Extended) && XPistons[0].Status == PistonStatus.Retracted)
             {
-                pristonZExtract = !pristonZExtract;
-                //Extend
+                LayerDone = true;
+                ZAxisJobActive = false;
+
+                ResetAxisZ();
+            }
+            else if (ZAxisJobActive && (ZPistons[0].Status == PistonStatus.Retracted || ZPistons[0].Status == PistonStatus.Extended))
+            {
+                ZAxisJobActive = false;
+                XAxisJobActive = false;
+            }
+            else if (!ZAxisJobActive)
+            {
                 foreach (IMyPistonBase p in ZPistons)
                 {
+                    ZAxisJobActive = true;
+                    p.MaxLimit += 2;
                     p.Extend();
                 }
             }
-            else if (pristonZExtract && (zCurrentPosition == ZPistons[0].MaxLimit))
-            {
-                pristonZExtract = !pristonZExtract;
-                //Retract
-                foreach (IMyPistonBase p in ZPistons)
-                {
-                    p.Retract();
-                }
-            }
-
-            Echo("Z - Piston Count: " + ZPistons.Count);
-            Echo("Z - Current Pos : " + zCurrentPosition);
         }
 
         public void YAxisJob()
         {
-            var yCurrentPosition = YPistons[0].CurrentPosition;
-
-            if (!pristonYExtract && (yCurrentPosition == YPistons[0].MinLimit))
+            if (YAxisJobActive && YPistons[0].MaxLimit == YPistons[0].CurrentPosition && YPistons[0].Status == PistonStatus.Extended)
             {
-                pristonYExtract = !pristonYExtract;
-                //Extend
-                foreach (IMyPistonBase p in YPistons)
+                LayerDone = false;
+                XAxisJobActive = false;
+                ZAxisJobActive = false;
+                YAxisJobActive = false;
+            }
+            else if (!YAxisJobActive && ZPistons[0].MaxLimit == ZPistons[0].CurrentPosition)
+            {
+                foreach (IMyPistonBase yP in YPistons)
                 {
-                    p.Extend();
+                    YAxisJobActive = true;
+                    yP.MaxLimit += 2;
+                    yP.Extend();
                 }
             }
-            else if (pristonYExtract && (yCurrentPosition == YPistons[0].MaxLimit))
-            {
-                pristonYExtract = !pristonYExtract;
-                //Retract
-                foreach (IMyPistonBase p in YPistons)
-                {
-                    p.Retract();
-                }
-            }
-
-            Echo("Y - Piston Count: " + YPistons.Count);
-            Echo("Y - Current Pos : " + yCurrentPosition);
         }
 
+        public void ResetAxisZ()
+        {
+            if(YPistons[0].CurrentPosition == 10)
+            {
+                isComplete = true;
+
+                // Reset Y - Axis
+                foreach (IMyPistonBase yP in YPistons)
+                {
+                    yP.Retract();
+                }
+
+                // Turn off Drills
+                foreach (IMyShipDrill d in Drills)
+                {
+                    d.Enabled = false;
+                }
+            }
+
+            ZAxisJobActive = true;
+            XAxisJobActive = true;
+
+            foreach (IMyPistonBase zP in ZPistons)
+            {
+                zP.MaxLimit = 0;
+                zP.Retract();
+            }
+            /*foreach (IMyShipDrill d in Drills)
+            {
+                d.Enabled = false;
+            }*/
+        }
         //******************************************************************
     }
 }
